@@ -29,6 +29,7 @@ services:
     volumes:
       - softether-data:/data
       - letsencrypt:/certs:ro
+      - scripts:/scripts
     ports:
       - "13443:443"
     cap_add:
@@ -60,3 +61,4 @@ volumes:
   webroot:
   letsencrypt:
   softether-data:
+  scripts:
