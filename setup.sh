@@ -15,16 +15,14 @@ CMD=$1
 USER=$2
 PASS=$3
 
-########################################
-# Helpers
-########################################
 log() { echo "[setup] $*"; }
 
 require_user() {
-  if [ -z "$USER" ]; then
-    echo "User required"
-    exit 1
-  fi
+  [ -z "$USER" ] && { echo "User required"; exit 1; }
+}
+
+vpn() {
+  vpncmd localhost /SERVER /HUB:$HUB /CMD "$@"
 }
 
 ########################################
@@ -36,40 +34,41 @@ add_cert_user() {
 
   log "Creating certificate user: $USER"
 
-  # generate key
-  openssl genrsa -out $CLIENT_DIR/$USER.key 2048
+  KEY=$CLIENT_DIR/$USER.key
+  CSR=$CLIENT_DIR/$USER.csr
+  CRT=$CLIENT_DIR/$USER.crt
+  P12=$CLIENT_DIR/$USER.p12
+
+  # key
+  openssl genrsa -out "$KEY" 2048 >/dev/null 2>&1
 
   # csr
   openssl req -new \
-    -key $CLIENT_DIR/$USER.key \
-    -out $CLIENT_DIR/$USER.csr \
-    -subj "/CN=$USER"
+    -key "$KEY" \
+    -out "$CSR" \
+    -subj "/CN=$USER" >/dev/null 2>&1
 
-  # sign with internal CA
+  # sign
   openssl x509 -req \
-    -in $CLIENT_DIR/$USER.csr \
-    -CA $CA_DIR/ca.crt -CAkey $CA_DIR/ca.key -CAcreateserial \
-    -out $CLIENT_DIR/$USER.crt \
-    -days 3650
+    -in "$CSR" \
+    -CA "$CA_DIR/ca.crt" -CAkey "$CA_DIR/ca.key" -CAcreateserial \
+    -out "$CRT" \
+    -days 3650 >/dev/null 2>&1
 
-  # export p12 for Windows
+  # p12
   openssl pkcs12 -export \
-    -out $CLIENT_DIR/$USER.p12 \
-    -inkey $CLIENT_DIR/$USER.key \
-    -in $CLIENT_DIR/$USER.crt \
-    -certfile $CA_DIR/ca.crt \
-    -passout pass:
+    -out "$P12" \
+    -inkey "$KEY" \
+    -in "$CRT" \
+    -certfile "$CA_DIR/ca.crt" \
+    -passout pass: >/dev/null 2>&1
 
-  # register inside SoftEther
-  vpncmd localhost /SERVER <<EOF >/dev/null
-Hub $HUB
-UserCreate $USER
-UserCertSet $USER /LOADCERT:$CLIENT_DIR/$USER.crt
-UserPolicySet $USER /MaxConnection:1
-exit
-EOF
+  # softether user
+  vpn UserCreate "$USER"
+  vpn UserCertSet "$USER" /LOADCERT:"$CRT"
+  vpn UserPolicySet "$USER" /MaxConnection:1
 
-  log "DONE -> $CLIENT_DIR/$USER.p12"
+  log "DONE -> $P12"
 }
 
 ########################################
@@ -79,20 +78,13 @@ add_password_user() {
 
   require_user
 
-  if [ -z "$PASS" ]; then
-    echo "Password required"
-    exit 1
-  fi
+  [ -z "$PASS" ] && { echo "Password required"; exit 1; }
 
   log "Creating password user: $USER"
 
-  vpncmd localhost /SERVER <<EOF >/dev/null
-Hub $HUB
-UserCreate $USER
-UserPasswordSet $USER /PASSWORD:$PASS
-UserPolicySet $USER /MaxConnection:1
-exit
-EOF
+  vpn UserCreate "$USER"
+  vpn UserPasswordSet "$USER" /PASSWORD:"$PASS"
+  vpn UserPolicySet "$USER" /MaxConnection:1
 
   log "DONE -> password user created"
 }
@@ -106,8 +98,8 @@ revoke_user() {
 
   log "Revoking user: $USER"
 
-  vpncmd localhost /SERVER /CMD UserDelete "$USER" >/dev/null 2>&1 || true
-  rm -f $CLIENT_DIR/$USER.*
+  vpn UserDelete "$USER" || true
+  rm -f "$CLIENT_DIR/$USER".*
 
   log "DONE -> removed"
 }
@@ -116,12 +108,7 @@ revoke_user() {
 # LIST USERS
 ########################################
 list_users() {
-
-  vpncmd localhost /SERVER <<EOF
-Hub $HUB
-UserList
-exit
-EOF
+  vpn UserList
 }
 
 ########################################
@@ -129,11 +116,11 @@ EOF
 ########################################
 usage() {
   echo ""
-  echo "Usage:"
-  echo "  setup.sh addcert  <user>           # branch/device (creates .p12)"
-  echo "  setup.sh adduser  <user> <pass>    # admin/password"
-  echo "  setup.sh revoke   <user>"
-  echo "  setup.sh list"
+  echo "Commands:"
+  echo "  addcert  <user>          -> branch/device (.p12)"
+  echo "  adduser  <user> <pass>   -> password admin"
+  echo "  revoke   <user>"
+  echo "  list"
   echo ""
 }
 
