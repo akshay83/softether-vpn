@@ -1,10 +1,10 @@
 FROM siomiz/softethervpn:latest
 
-RUN apk add --no-cache bash openssl inotify-tools
+RUN apk add --no-cache bash openssl inotify-tools nano
 
-COPY entrypoint.sh /entrypoint.sh
-COPY setup.sh /setup.sh
+COPY entrypoint.sh /scripts/entrypoint.sh
+COPY setup.sh /scripts/setup.sh
 
-RUN chmod +x /entrypoint.sh /setup.sh
+RUN chmod +x /scripts/entrypoint.sh /scripts/setup.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/scripts/entrypoint.sh"]
