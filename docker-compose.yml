@@ -1,6 +1,19 @@
+#Create a proxy host on NPM (Nginx Proxy Manager)
+#Add the following on NPM locations to Handle Certbot Verification
+# location /.well-known/acme-challenge/ {
+#     proxy_pass http://HostB_IP:8080;
+# }
+
 version: "3.9"
 
 services:
+  acme-web:
+    image: nginx:alpine
+    volumes:
+        - webroot:/usr/share/nginx/html:ro
+    ports:
+        - "8080:80"
+    
   softether:
     image: softether-vpn
     restart: unless-stopped
@@ -23,15 +36,25 @@ services:
 
   certbot:
     image: certbot/certbot
+    entrypoint: /bin/sh
+    restart: unless-stopped
+    command: 
+      - -c
+      - |
+          certbot certonly --staging --webroot \
+            -w /var/www/certbot \
+            -d vpn.example.com \
+            --email you@email.com \
+            --agree-tos \
+            --non-interactive || true;
+      
+          while true; do
+            sleep 12h;
+            certbot renew --staging --webroot -w /var/www/certbot;
+          done
     volumes:
       - letsencrypt:/etc/letsencrypt
       - webroot:/var/www/certbot
-    command: >
-      sh -c "
-      certbot certonly --staging --webroot -w /var/www/certbot
-      -d vpn.example.com --email you@email.com --agree-tos --non-interactive &&
-      while :; do sleep 12h; certbot renew --webroot -w /var/www/certbot; done
-      "
 
 volumes:
   webroot:
