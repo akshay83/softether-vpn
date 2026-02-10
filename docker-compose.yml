@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  softether:
+    build: .
+    restart: unless-stopped
+
+    environment:
+      SE_DOMAIN: vpn.example.com
+      SE_CERT_DIR: /certs/live/vpn.example.com
+
+      SE_VPN_SUBNET: 10.20.30.0
+      SE_VPN_MASK: 255.255.255.0
+      SE_VPN_START: 10.20.30.10
+      SE_VPN_END: 10.20.30.100
+
+      SE_CLIENTS: branch1,branch2
+      SE_ADMIN_USERS: akshay:StrongPass123
+
+    volumes:
+      - ./data:/data
+      - letsencrypt:/certs:ro
+
+    ports:
+      - "443:443"
+
+    cap_add:
+      - NET_ADMIN
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - ./webroot:/var/www/certbot
+    command: >
+      sh -c "
+      certbot certonly --webroot -w /var/www/certbot
+      -d vpn.example.com --email you@email.com --agree-tos --non-interactive &&
+      while :; do sleep 12h; certbot renew --webroot -w /var/www/certbot; done
+      "
+
+volumes:
+  letsencrypt:
