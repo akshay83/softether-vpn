@@ -10,8 +10,9 @@ RUN curl -L https://github.com/SoftEtherVPN/SoftEtherVPN_Stable/archive/refs/tag
  && tar xzf se.tar.gz \
  && cd SoftEtherVPN_Stable-* \
  && cmake . \
- && make -j$(nproc) \
+ && yes 1 | make -j$(nproc) \
  && make install
+
 
 WORKDIR /usr/local/vpnserver
 
