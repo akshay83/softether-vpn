@@ -150,9 +150,12 @@ done
 until [[ -f "$SE_CERT_DIR/fullchain.pem" ]]; do sleep 5; done
 
 reload_tls() {
-  vpncmd localhost /SERVER /CMD ServerCertSet \
-    "$SE_CERT_DIR/fullchain.pem" \
-    "$SE_CERT_DIR/privkey.pem" >/dev/null
+  log "Installing TLS certificate"
+
+  cp "$SE_CERT_DIR/fullchain.pem" /usr/vpnserver/server_cert.pem
+  cp "$SE_CERT_DIR/privkey.pem"   /usr/vpnserver/server_key.pem
+
+  /usr/vpnserver/vpnserver restart
 }
 
 reload_tls
