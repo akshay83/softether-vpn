@@ -1,0 +1,6 @@
+data/
+letsencrypt/
+.env
+*.p12
+*.key
+*.crt
