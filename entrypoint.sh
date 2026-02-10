@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
+echo "Entered"
 
 ########################################
 # REQUIRED
@@ -19,45 +20,55 @@ SE_VPN_MASK=${SE_VPN_MASK:-255.255.255.0}
 SE_VPN_START=${SE_VPN_START:-10.10.0.10}
 SE_VPN_END=${SE_VPN_END:-10.10.0.200}
 
-SE_CLIENTS=${SE_CLIENTS:-""}        # cert users
-SE_ADMIN_USERS=${SE_ADMIN_USERS:-""} # password users
-
+SE_CLIENTS=${SE_CLIENTS:-""}
+SE_ADMIN_USERS=${SE_ADMIN_USERS:-""}
 SE_CERT_YEARS=${SE_CERT_YEARS:-10}
 
 DATA=/data
 CA_DIR=$DATA/ca
 CLIENT_DIR=$DATA/clients
 
-mkdir -p $CA_DIR $CLIENT_DIR
+mkdir -p "$CA_DIR" "$CLIENT_DIR"
 
 log(){ echo "[$(date)] $*"; }
+
+vpn() {
+  vpncmd localhost /SERVER "$@" >/dev/null 2>&1 || true
+}
+
+log "Starting Server"
 
 ########################################
 # Start server
 ########################################
-/usr/vpnserver/vpnserver start
-sleep 3
+#/usr/vpnserver/vpnserver start || true
+#/usr/vpnserver/vpnserver start &
+sleep 5
 
-vpncmd localhost /SERVER /CMD ServerPasswordSet "$SE_ADMIN_PASSWORD" >/dev/null
+vpn /CMD ServerPasswordSet "$SE_ADMIN_PASSWORD"
+
+log "Hub + SSTP"
 
 ########################################
 # Hub + SSTP
 ########################################
-vpncmd localhost /SERVER <<EOF >/dev/null
+vpn <<EOF
 HubCreate $SE_HUB /PASSWORD:hubpass
 exit
 EOF
 
-vpncmd localhost /SERVER /CMD SstpEnable yes >/dev/null
-vpncmd localhost /SERVER /CMD ListenerDelete "$SE_PORT" >/dev/null 2>&1 || true
-vpncmd localhost /SERVER /CMD ListenerCreate "$SE_PORT" >/dev/null
+vpn /CMD SstpEnable yes
+vpn /CMD ListenerDelete "$SE_PORT"
+vpn /CMD ListenerCreate "$SE_PORT"
+
+log "SecureNAT + DHCP"
 
 ########################################
 # SecureNAT + DHCP
 ########################################
 GW="${SE_VPN_SUBNET%.*}.1"
 
-vpncmd localhost /SERVER <<EOF >/dev/null
+vpn <<EOF
 Hub $SE_HUB
 SecureNatEnable
 SecureNatHostSet /IP:$GW /MASK:$SE_VPN_MASK
@@ -65,8 +76,10 @@ DhcpSet /START:$SE_VPN_START /END:$SE_VPN_END
 exit
 EOF
 
+log "Internal CA"
+
 ########################################
-# INTERNAL CA (once)
+# INTERNAL CA
 ########################################
 if [[ ! -f "$CA_DIR/ca.key" ]]; then
   log "Creating internal CA"
@@ -79,89 +92,42 @@ if [[ ! -f "$CA_DIR/ca.key" ]]; then
     -subj "/CN=SoftEther-Internal-CA"
 fi
 
-########################################
-# CERT CLIENTS
-########################################
-create_cert_user() {
-
-USER=$1
-[[ -f "$CLIENT_DIR/$USER.p12" ]] && return
-
-log "Creating cert client: $USER"
-
-openssl genrsa -out $CLIENT_DIR/$USER.key 2048
-openssl req -new -key $CLIENT_DIR/$USER.key -out $CLIENT_DIR/$USER.csr -subj "/CN=$USER"
-
-openssl x509 -req \
-  -in $CLIENT_DIR/$USER.csr \
-  -CA $CA_DIR/ca.crt -CAkey $CA_DIR/ca.key -CAcreateserial \
-  -out $CLIENT_DIR/$USER.crt \
-  -days $((SE_CERT_YEARS*365))
-
-openssl pkcs12 -export \
-  -out $CLIENT_DIR/$USER.p12 \
-  -inkey $CLIENT_DIR/$USER.key \
-  -in $CLIENT_DIR/$USER.crt \
-  -certfile $CA_DIR/ca.crt \
-  -passout pass:
-
-vpncmd localhost /SERVER <<EOF >/dev/null
-Hub $SE_HUB
-UserCreate $USER
-UserCertSet $USER /LOADCERT:$CLIENT_DIR/$USER.crt
-UserPolicySet $USER /MaxConnection:1
-exit
-EOF
-}
-
-IFS=',' read -ra USERS <<< "$SE_CLIENTS"
-for u in "${USERS[@]}"; do
-  create_cert_user "$u"
-done
+log "TLS Installer"
 
 ########################################
-# PASSWORD ADMIN USERS
+# TLS INSTALLER (non-blocking)
 ########################################
-create_admin_user() {
-
-PAIR=$1
-USER=${PAIR%%:*}
-PASS=${PAIR##*:}
-
-log "Creating admin user: $USER"
-
-vpncmd localhost /SERVER <<EOF >/dev/null
-Hub $SE_HUB
-UserCreate $USER
-UserPasswordSet $USER /PASSWORD:$PASS
-UserPolicySet $USER /MaxConnection:1
-exit
-EOF
-}
-
-IFS=',' read -ra ADMINS <<< "$SE_ADMIN_USERS"
-for a in "${ADMINS[@]}"; do
-  create_admin_user "$a"
-done
-
-########################################
-# LETSENCRYPT TLS
-########################################
-until [[ -f "$SE_CERT_DIR/fullchain.pem" ]]; do sleep 5; done
-
 reload_tls() {
-  log "Installing TLS certificate"
+  if [[ -f "$SE_CERT_DIR/fullchain.pem" ]]; then
+    log "Installing TLS certificate"
 
-  cp "$SE_CERT_DIR/fullchain.pem" /usr/vpnserver/server_cert.pem
-  cp "$SE_CERT_DIR/privkey.pem"   /usr/vpnserver/server_key.pem
+    cp "$SE_CERT_DIR/fullchain.pem" /usr/vpnserver/server_cert.pem
+    cp "$SE_CERT_DIR/privkey.pem"   /usr/vpnserver/server_key.pem
 
-  /usr/vpnserver/vpnserver restart
+    #/usr/vpnserver/vpnserver stop || true
+    #sleep 2
+    #/usr/vpnserver/vpnserver start || true
+  else
+    log "TLS certificate not present yet"
+  fi
 }
 
+# try once at startup
 reload_tls
 
+
 ########################################
-# Watch renewals
+# Watch renewals (BACKGROUND!!)
 ########################################
-inotifywait -m -e close_write "$SE_CERT_DIR" |
-while read -r _; do reload_tls; done
+(
+  inotifywait -m -e close_write,create "$SE_CERT_DIR" |
+  while read -r _; do
+    reload_tls
+  done
+) &
+
+########################################
+# Start SoftEther FOREGROUND (PID 1)
+########################################
+log "Starting SoftEther server"
+exec /usr/vpnserver/vpnserver execsvc
