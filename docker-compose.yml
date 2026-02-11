@@ -13,22 +13,25 @@ services:
         - webroot:/usr/share/nginx/html:ro
     ports:
         - "8080:80"
+    restart: unless-stopped
     
   softether:
     image: softether-vpn
     restart: unless-stopped
+    privileged: true
     environment:
-      SE_DOMAIN: vpn.example.com
-      SE_CERT_DIR: /certs/live/vpn.example.com
-      SE_VPN_SUBNET: 10.20.30.0
-      SE_VPN_MASK: 255.255.255.0
-      SE_VPN_START: 10.20.30.10
-      SE_VPN_END: 10.20.30.100
+      SE_DOMAIN: ${DOMAIN}
+      SE_CERT_DIR: /etc/letsencrypt/live/${DOMAIN}
+      SE_VPN_SUBNET: ${VPN_SUBNET}
+      SE_VPN_MASK: ${VPN_MASK}
+      SE_VPN_START: ${VPN_START}
+      SE_VPN_END: ${VPN_END}
       SE_CLIENTS: branch1,branch2
       SE_ADMIN_USERS: akshay:StrongPass123
+      SE_ADMIN_PASSWORD: admin
     volumes:
       - softether-data:/data
-      - letsencrypt:/certs:ro
+      - letsencrypt:/etc/letsencrypt:ro
       - scripts:/scripts
     ports:
       - "13443:443"
@@ -42,16 +45,16 @@ services:
     command: 
       - -c
       - |
-          certbot certonly --staging --webroot \
+          certbot certonly ${STAGING:+--staging} --webroot \
             -w /var/www/certbot \
-            -d vpn.example.com \
-            --email you@email.com \
+            -d ${DOMAIN} \
+            --email ${EMAIL} \
             --agree-tos \
             --non-interactive || true;
       
           while true; do
             sleep 12h;
-            certbot renew --staging --webroot -w /var/www/certbot;
+            certbot renew ${STAGING:+--staging} --webroot -w /var/www/certbot;
           done
     volumes:
       - letsencrypt:/etc/letsencrypt
