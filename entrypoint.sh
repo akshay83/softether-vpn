@@ -105,9 +105,9 @@ reload_tls() {
     cp "$SE_CERT_DIR/fullchain.pem" /usr/local/server_cert.pem
     cp "$SE_CERT_DIR/privkey.pem"   /usr/local/server_key.pem
 
-    "$VPN_DIR/vpnserver" stop || true
-    #sleep 2
-    "$VPN_DIR/vpnserver" start || true
+    vpn /CMD ServerCertSet \
+        /LOADCERT:/usr/local/server_cert.pem \
+        /LOADKEY:/usr/local/server_key.pem
   else
     log "TLS certificate not present yet"
   fi
@@ -131,4 +131,4 @@ reload_tls
 # Start SoftEther FOREGROUND (PID 1)
 ########################################
 log "Starting SoftEther server"
-exec "$VPN_DIR/vpnserver"
+exec "$VPN_DIR/vpnserver" execsvc
