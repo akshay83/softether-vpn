@@ -33,11 +33,18 @@ mkdir -p "$CA_DIR" "$CLIENT_DIR"
 
 log(){ echo "[$(date)] $*"; }
 
+# before password exists
+vpn_noauth() {
+  "$VPN_DIR/vpncmd" localhost /SERVER "$@"
+}
+
+# after password exists
 vpn() {
-  vpncmd localhost /SERVER "$@" >/dev/null 2>&1 || true
+  "$VPN_DIR/vpncmd" localhost /SERVER /PASSWORD:"$SE_ADMIN_PASSWORD" "$@"
 }
 
 log "Starting Server"
+
 
 ########################################
 # Start server
@@ -46,7 +53,7 @@ log "Starting Server"
 #/usr/local/vpnserver start &
 sleep 5
 
-vpn /CMD ServerPasswordSet "$SE_ADMIN_PASSWORD"
+vpn_noauth /CMD ServerPasswordSet "$SE_ADMIN_PASSWORD"
 
 log "Hub + SSTP"
 
@@ -59,8 +66,8 @@ exit
 EOF
 
 vpn /CMD SstpEnable yes
-vpn /CMD ListenerDelete "$SE_PORT"
-vpn /CMD ListenerCreate "$SE_PORT"
+#vpn /CMD ListenerDelete "$SE_PORT"
+#vpn /CMD ListenerCreate "$SE_PORT"
 
 log "SecureNAT + DHCP"
 
@@ -93,6 +100,9 @@ if [[ ! -f "$CA_DIR/ca.key" ]]; then
     -subj "/CN=SoftEther-Internal-CA"
 fi
 
+log "Starting Server"
+"$VPN_DIR/vpnserver" start
+
 log "TLS Installer"
 
 ########################################
@@ -101,6 +111,7 @@ log "TLS Installer"
 reload_tls() {
   if [[ -f "$SE_CERT_DIR/fullchain.pem" ]]; then
     log "Installing TLS certificate"
+    log "$SE_CERT_DIR"
 
     cp -L "$SE_CERT_DIR/fullchain.pem" /tmp/server_cert.pem
     cp -L "$SE_CERT_DIR/privkey.pem"   /tmp/server_key.pem
@@ -130,4 +141,4 @@ reload_tls
   done
 ) &
 
-exec "$VPN_DIR/vpnserver" execsvc
+#exec "$VPN_DIR/vpnserver" execsvc
