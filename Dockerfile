@@ -1,18 +1,31 @@
-FROM alpine:3.20
+############################################
+# STAGE 1 — BUILD
+############################################
+FROM alpine:3.20 AS builder
 
 RUN apk add --no-cache \
-    bash git inotify-tools \
-    build-base readline-dev ncurses-dev openssl-dev zlib-dev cmake \
+    bash git build-base cmake \
+    readline-dev ncurses-dev openssl-dev zlib-dev \
     libsodium-dev
 
-# build SoftEther from official source
-WORKDIR /usr/src
+WORKDIR /build
 
 RUN git clone --depth 1 --recurse-submodules https://github.com/SoftEtherVPN/SoftEtherVPN.git \
  && cd SoftEtherVPN \
  && ./configure \
- && make -C build -j$(nproc) \
- && make -C build install
+ && make -C build -j$(nproc)
+
+
+############################################
+# STAGE 2 — RUNTIME
+############################################
+FROM alpine:3.20
+
+RUN apk add --no-cache \
+    bash openssl readline ncurses-libs \
+    zlib libsodium inotify-tools
+
+COPY --from=builder /build/SoftEtherVPN/build/ /usr/local/vpnserver/
 
 WORKDIR /usr/local/vpnserver
 
