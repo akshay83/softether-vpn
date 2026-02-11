@@ -30,11 +30,12 @@ ENV LD_LIBRARY_PATH=/usr/local/vpnserver
 
 WORKDIR /usr/local/vpnserver
 
-COPY entrypoint.sh /entrypoint.sh
-COPY setup.sh /setup.sh
+RUN mkdir -p /scripts
+COPY entrypoint.sh /scripts/entrypoint.sh
+COPY setup.sh /scripts/setup.sh
 
-RUN chmod +x /entrypoint.sh /setup.sh
+RUN chmod +x /scripts/entrypoint.sh /scripts/setup.sh
 
 EXPOSE 443 5555 500/udp 4500/udp 1701/udp 1194/udp 992
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/scripts/entrypoint.sh"]
