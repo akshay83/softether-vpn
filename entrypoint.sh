@@ -27,6 +27,7 @@ SE_CERT_YEARS=${SE_CERT_YEARS:-10}
 DATA=/data
 CA_DIR=$DATA/ca
 CLIENT_DIR=$DATA/clients
+VPN_DIR=/usr/local/vpnserver
 
 mkdir -p "$CA_DIR" "$CLIENT_DIR"
 
@@ -104,9 +105,9 @@ reload_tls() {
     cp "$SE_CERT_DIR/fullchain.pem" /usr/local/server_cert.pem
     cp "$SE_CERT_DIR/privkey.pem"   /usr/local/server_key.pem
 
-    /usr/local/vpnserver stop || true
+    "$VPN_DIR/vpnserver" stop || true
     #sleep 2
-    /usr/local/vpnserver start || true
+    "$VPN_DIR/vpnserver" start || true
   else
     log "TLS certificate not present yet"
   fi
@@ -130,4 +131,4 @@ reload_tls
 # Start SoftEther FOREGROUND (PID 1)
 ########################################
 log "Starting SoftEther server"
-exec /usr/local/vpnserver execsvc
+exec "$VPN_DIR/vpnserver"
