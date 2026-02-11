@@ -26,6 +26,7 @@ RUN apk add --no-cache \
     zlib libsodium inotify-tools
 
 COPY --from=builder /build/SoftEtherVPN/build/ /usr/local/vpnserver/
+ENV LD_LIBRARY_PATH=/usr/local/vpnserver
 
 WORKDIR /usr/local/vpnserver
 
