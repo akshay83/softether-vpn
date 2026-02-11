@@ -45,14 +45,21 @@ vpn() {
 
 log "Starting Server"
 
-
 ########################################
 # Start server
 ########################################
 #/usr/local/vpnserver start || true
 #/usr/local/vpnserver start &
-sleep 5
+#sleep 5
 
+"$VPN_DIR/vpnserver" start
+
+for i in {1..20}; do
+  "$VPN_DIR/vpncmd" localhost /SERVER /CMD About >/dev/null 2>&1 && break
+  sleep 1
+done
+
+echo "Issuing First VPN Command"
 vpn_noauth /CMD ServerPasswordSet "$SE_ADMIN_PASSWORD"
 
 log "Hub + SSTP"
@@ -131,14 +138,14 @@ reload_tls
 ########################################
 # Watch renewals (BACKGROUND!!)
 ########################################
-(
-  sleep 8
-  reload_tls
+reload_tls
 
+(
   inotifywait -m -e close_write,create "$SE_CERT_DIR" |
   while read -r _; do
     reload_tls
   done
 ) &
 
-#exec "$VPN_DIR/vpnserver" execsvc
+"$VPN_DIR/vpnserver" stop
+exec "$VPN_DIR/vpnserver" execsvc
