@@ -41,8 +41,8 @@ log "Starting Server"
 ########################################
 # Start server
 ########################################
-#/usr/vpnserver/vpnserver start || true
-#/usr/vpnserver/vpnserver start &
+#/usr/local/vpnserver start || true
+#/usr/local/vpnserver start &
 sleep 5
 
 vpn /CMD ServerPasswordSet "$SE_ADMIN_PASSWORD"
@@ -101,12 +101,12 @@ reload_tls() {
   if [[ -f "$SE_CERT_DIR/fullchain.pem" ]]; then
     log "Installing TLS certificate"
 
-    cp "$SE_CERT_DIR/fullchain.pem" /usr/vpnserver/server_cert.pem
-    cp "$SE_CERT_DIR/privkey.pem"   /usr/vpnserver/server_key.pem
+    cp "$SE_CERT_DIR/fullchain.pem" /usr/local/server_cert.pem
+    cp "$SE_CERT_DIR/privkey.pem"   /usr/local/server_key.pem
 
-    #/usr/vpnserver/vpnserver stop || true
+    /usr/local/vpnserver stop || true
     #sleep 2
-    #/usr/vpnserver/vpnserver start || true
+    /usr/local/vpnserver start || true
   else
     log "TLS certificate not present yet"
   fi
@@ -130,4 +130,4 @@ reload_tls
 # Start SoftEther FOREGROUND (PID 1)
 ########################################
 log "Starting SoftEther server"
-exec /usr/vpnserver/vpnserver execsvc
+exec /usr/local/vpnserver execsvc
